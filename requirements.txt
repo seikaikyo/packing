@@ -1,0 +1,6 @@
+streamlit
+pandas
+openpyxl
+pyautogui
+odfpy
+pyodbc
