@@ -47,12 +47,12 @@ class GroupFunction:
         self.pallet_count_entry.grid(row=4, column=1, padx=10, pady=10)
         self.pallet_count_entry.bind('<Return>', self.focus_next_widget)
         
-        tk.Label(self.root, text="母料序號:", font=font).grid(row=5, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(self.root, text="外袋標籤:", font=font).grid(row=5, column=0, padx=10, pady=10, sticky="e")
         self.mother_serial_entry = tk.Entry(self.root, font=font, width=20)
         self.mother_serial_entry.grid(row=5, column=1, padx=10, pady=10)
         self.mother_serial_entry.bind('<Return>', self.add_mother_serial)
 
-        tk.Label(self.root, text="子料序號:", font=font).grid(row=6, column=0, padx=10, pady=10, sticky="e")
+        tk.Label(self.root, text="產品序號:", font=font).grid(row=6, column=0, padx=10, pady=10, sticky="e")
         self.child_serial_entry = tk.Entry(self.root, font=font, width=20)
         self.child_serial_entry.grid(row=6, column=1, padx=10, pady=10)
         self.child_serial_entry.bind('<Return>', self.add_child_serial)
@@ -100,13 +100,13 @@ class GroupFunction:
         if is_mother:
             c.execute('SELECT COUNT(*) FROM group_item WHERE mother_serial = ?', (serial,))
             if c.fetchone()[0] > 0:
-                messagebox.showwarning("輸入錯誤", f"母料序號 {serial} 已存在，無法重複使用")
+                messagebox.showwarning("輸入錯誤", f"外袋標籤 {serial} 已存在，無法重複使用")
                 self.mother_serial_entry.delete(0, tk.END)
                 return
         else:
             c.execute('SELECT COUNT(*) FROM group_item WHERE child_serial = ?', (serial,))
             if c.fetchone()[0] > 0:
-                messagebox.showwarning("輸入錯誤", f"子料序號 {serial} 已存在，無法重複使用")
+                messagebox.showwarning("輸入錯誤", f"產品序號 {serial} 已存在，無法重複使用")
                 self.child_serial_entry.delete(0, tk.END)
                 return
         
