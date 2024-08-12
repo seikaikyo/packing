@@ -10,3 +10,6 @@ __pycache__/
 .DS_Store
 *.log
 packaging_data.db
+main.spec
+dist/
+build/

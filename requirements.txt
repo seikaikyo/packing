@@ -4,3 +4,4 @@ openpyxl
 pyautogui
 odfpy
 pyodbc
+pyinstaller
