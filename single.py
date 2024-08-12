@@ -52,14 +52,17 @@ class SingleFunction:
         self.serial_entry.grid(row=5, column=1, padx=10, pady=10)
         self.serial_entry.bind('<Return>', self.add_serial)
 
+        self.error_label = tk.Label(self.root, text="", font=font, fg="white", bg="red")
+        self.error_label.grid(row=6, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+
         self.serial_listbox = tk.Listbox(self.root)
-        self.serial_listbox.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
+        self.serial_listbox.grid(row=7, column=0, columnspan=2, padx=10, pady=10)
         
         self.count_label = tk.Label(self.root, text="目前包裝數量: 0")
-        self.count_label.grid(row=7, column=0, columnspan=2, padx=10, pady=10)
+        self.count_label.grid(row=8, column=0, columnspan=2, padx=10, pady=10)
 
         button_frame = tk.Frame(self.root)
-        button_frame.grid(row=8, column=0, columnspan=2, padx=10, pady=10)
+        button_frame.grid(row=9, column=0, columnspan=2, padx=10, pady=10)
         tk.Button(button_frame, text="清空", command=self.clear_entries).grid(row=0, column=0, padx=5, pady=5)
         tk.Button(button_frame, text="關閉工單", command=self.close_order).grid(row=0, column=1, padx=5, pady=5)
         tk.Button(button_frame, text="清空資料庫", command=self.clear_database).grid(row=0, column=2, padx=5, pady=5)
@@ -80,16 +83,19 @@ class SingleFunction:
         pallet_count = int(self.pallet_count_entry.get() or 0)
 
         if serial:
-            self.insert_serial(serial, order, pallet_count)
+            if self.is_duplicate_serial(serial):
+                self.error_label.config(text=f"錯誤: 序號 {serial} 已存在，無法重複使用")
+                self.serial_entry.delete(0, tk.END)
+            else:
+                self.insert_serial(serial, order, pallet_count)
+                self.error_label.config(text="")
 
-    def insert_serial(self, serial, order, pallet_count):
+    def is_duplicate_serial(self, serial):
         c = self.db.sqlite_conn.cursor()
         c.execute('SELECT COUNT(*) FROM single_item WHERE serial_number = ?', (serial,))
-        if c.fetchone()[0] > 0:
-            messagebox.showwarning("輸入錯誤", f"單片序號 {serial} 已存在，無法重複使用")
-            self.serial_entry.delete(0, tk.END)
-            return
-        
+        return c.fetchone()[0] > 0
+
+    def insert_serial(self, serial, order, pallet_count):
         self.save_to_database(serial)
 
         if serial not in self.serial_listbox.get(0, tk.END):
@@ -100,8 +106,6 @@ class SingleFunction:
             if self.pallet_serial_count == pallet_count:
                 self.generate_new_pallet_number()
                 self.pallet_serial_count = 0
-        else:
-            self.serial_entry.delete(0, tk.END)
 
     def update_count(self):
         count = self.serial_listbox.size()
@@ -131,10 +135,11 @@ class SingleFunction:
         self.order_entry.delete(0, tk.END)
         self.station_entry.delete(0, tk.END)
         self.employee_entry.delete(0, tk.END)
-        self.spec_var.set("單(17)")
+        self.spec_var.set("單片(17)")
         self.pallet_count_entry.delete(0, tk.END)
         self.serial_entry.delete(0, tk.END)
         self.serial_listbox.delete(0, tk.END)
+        self.error_label.config(text="")
         self.update_count()
         self.pallet_serial_count = 0
         self.current_pallet_number = None

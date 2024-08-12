@@ -47,21 +47,19 @@ class GroupFunction:
         self.pallet_count_entry.grid(row=4, column=1, padx=10, pady=10)
         self.pallet_count_entry.bind('<Return>', self.focus_next_widget)
         
-        tk.Label(self.root, text="外袋標籤:", font=font).grid(row=5, column=0, padx=10, pady=10, sticky="e")
-        self.mother_serial_entry = tk.Entry(self.root, font=font, width=20)
-        self.mother_serial_entry.grid(row=5, column=1, padx=10, pady=10)
-        self.mother_serial_entry.bind('<Return>', self.add_mother_serial)
-
-        tk.Label(self.root, text="產品序號:", font=font).grid(row=6, column=0, padx=10, pady=10, sticky="e")
-        self.child_serial_entry = tk.Entry(self.root, font=font, width=20)
-        self.child_serial_entry.grid(row=6, column=1, padx=10, pady=10)
-        self.child_serial_entry.bind('<Return>', self.add_child_serial)
+        tk.Label(self.root, text="產品序號:", font=font).grid(row=5, column=0, padx=10, pady=10, sticky="e")
+        self.serial_entry = tk.Entry(self.root, font=font, width=20)
+        self.serial_entry.grid(row=5, column=1, padx=10, pady=10)
+        self.serial_entry.bind('<Return>', self.add_serial)
 
         self.serial_listbox = tk.Listbox(self.root)
-        self.serial_listbox.grid(row=7, column=0, columnspan=2, padx=10, pady=10)
+        self.serial_listbox.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
         
         self.count_label = tk.Label(self.root, text="目前包裝數量: 0")
-        self.count_label.grid(row=8, column=0, columnspan=2, padx=10, pady=10)
+        self.count_label.grid(row=7, column=0, columnspan=2, padx=10, pady=10)
+
+        self.error_label = tk.Label(self.root, text="", fg="white", bg="red", font=font)
+        self.error_label.grid(row=8, column=0, columnspan=2, padx=10, pady=5)
 
         button_frame = tk.Frame(self.root)
         button_frame.grid(row=9, column=0, columnspan=2, padx=10, pady=10)
@@ -74,55 +72,56 @@ class GroupFunction:
         self.pallet_serial_count = 0
         self.current_pallet_number = None
         self.pallet_sequence = 1  # 每日棧板號碼的序列
+        self.current_mother_serial = None
+        self.mother_serial_count = 0
 
     def focus_next_widget(self, event):
         event.widget.tk_focusNext().focus()
         return "break"
 
-    def add_mother_serial(self, event=None):
-        mother_serial = self.mother_serial_entry.get()
+    def add_serial(self, event=None):
+        serial = self.serial_entry.get()
         order = self.order_entry.get()
         pallet_count = int(self.pallet_count_entry.get() or 0)
 
-        if mother_serial:
-            self.insert_serial(mother_serial, order, pallet_count, is_mother=True)
+        if serial.startswith("M"):
+            self.current_mother_serial = serial
+            self.mother_serial_count += 1
+            if self.mother_serial_count == pallet_count:
+                self.generate_new_pallet_number()
+                self.mother_serial_count = 0
+        else:
+            if not self.current_mother_serial:
+                self.show_error("請先刷入外袋標籤（M開頭）")
+                return
 
-    def add_child_serial(self, event=None):
-        child_serial = self.child_serial_entry.get()
-        order = self.order_entry.get()
-        pallet_count = int(self.pallet_count_entry.get() or 0)
-
-        if child_serial:
-            self.insert_serial(child_serial, order, pallet_count, is_mother=False)
+        self.insert_serial(serial, order, pallet_count, is_mother=serial.startswith("M"))
 
     def insert_serial(self, serial, order, pallet_count, is_mother):
         c = self.db.sqlite_conn.cursor()
         if is_mother:
             c.execute('SELECT COUNT(*) FROM group_item WHERE mother_serial = ?', (serial,))
             if c.fetchone()[0] > 0:
-                messagebox.showwarning("輸入錯誤", f"外袋標籤 {serial} 已存在，無法重複使用")
-                self.mother_serial_entry.delete(0, tk.END)
+                self.show_error(f"外袋標籤 {serial} 已存在，無法重複使用")
+                self.serial_entry.delete(0, tk.END)
                 return
         else:
             c.execute('SELECT COUNT(*) FROM group_item WHERE child_serial = ?', (serial,))
             if c.fetchone()[0] > 0:
-                messagebox.showwarning("輸入錯誤", f"產品序號 {serial} 已存在，無法重複使用")
-                self.child_serial_entry.delete(0, tk.END)
+                self.show_error(f"產品序號 {serial} 已存在，無法重複使用")
+                self.serial_entry.delete(0, tk.END)
                 return
         
         self.save_to_database(serial, is_mother)
 
         if serial not in self.serial_listbox.get(0, tk.END):
             self.serial_listbox.insert(tk.END, serial)
-            if is_mother:
-                self.mother_serial_entry.delete(0, tk.END)
-            else:
-                self.child_serial_entry.delete(0, tk.END)
+            self.serial_entry.delete(0, tk.END)
             self.update_count()
             self.pallet_serial_count += 1
-            if self.pallet_serial_count == pallet_count:
-                self.generate_new_pallet_number()
-                self.pallet_serial_count = 0
+
+    def show_error(self, message):
+        self.error_label.config(text=message)
 
     def update_count(self):
         count = self.serial_listbox.size()
@@ -145,7 +144,7 @@ class GroupFunction:
         date = datetime.now().strftime("%Y-%m-%d")
         create_time = datetime.now().strftime("%H:%M:%S.%f")  # 包含毫秒的時間戳
 
-        data = (order, station, employee, product_type, pallet_count, serial, None if not is_mother else serial, self.current_pallet_number, date, create_time)
+        data = (order, station, employee, product_type, pallet_count, self.current_mother_serial if is_mother else None, serial if not is_mother else None, self.current_pallet_number, date, create_time)
         self.db.insert_group_item(data)
 
     def clear_entries(self):
@@ -154,12 +153,14 @@ class GroupFunction:
         self.employee_entry.delete(0, tk.END)
         self.spec_var.set("整組(14)")
         self.pallet_count_entry.delete(0, tk.END)
-        self.mother_serial_entry.delete(0, tk.END)
-        self.child_serial_entry.delete(0, tk.END)
+        self.serial_entry.delete(0, tk.END)
         self.serial_listbox.delete(0, tk.END)
+        self.error_label.config(text="")
         self.update_count()
         self.pallet_serial_count = 0
         self.current_pallet_number = None
+        self.current_mother_serial = None
+        self.mother_serial_count = 0
         self.order_entry.focus_set()
 
     def clear_database(self):
@@ -170,7 +171,7 @@ class GroupFunction:
     def close_order(self):
         order = self.order_entry.get()
         if not order:
-            messagebox.showwarning("輸入錯誤", "請先輸入工單號碼")
+            self.show_error("請先輸入工單號碼")
             return
 
         self.export_to_excel()
@@ -179,14 +180,14 @@ class GroupFunction:
     def export_to_excel(self):
         order = self.order_entry.get()
         if not order:
-            messagebox.showwarning("輸入錯誤", "請先輸入工單號碼")
+            self.show_error("請先輸入工單號碼")
             return
 
         group_query = "SELECT * FROM group_item WHERE order_number = ?"
         group_df = pd.read_sql_query(group_query, self.db.sqlite_conn, params=(order,))
         
         if group_df.empty:
-            messagebox.showwarning("無資料", "無此工單號碼的資料")
+            self.show_error("無此工單號碼的資料")
             return
 
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
