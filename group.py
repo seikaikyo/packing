@@ -14,6 +14,8 @@ class GroupFunction:
         self.db = DatabaseManager()
         self.db.create_tables()
 
+        self.pallet_default_count = 15  # 預設棧板數量
+
         self.create_widgets()
 
     def create_widgets(self):
@@ -45,6 +47,7 @@ class GroupFunction:
         tk.Label(self.root, text="棧板數量:", font=font).grid(row=4, column=0, padx=10, pady=10, sticky="e")
         self.pallet_count_entry = tk.Entry(self.root, font=font, width=20)
         self.pallet_count_entry.grid(row=4, column=1, padx=10, pady=10)
+        self.pallet_count_entry.insert(0, str(self.pallet_default_count))  # 預設棧板數量
         self.pallet_count_entry.bind('<Return>', self.focus_next_widget)
         
         tk.Label(self.root, text="產品序號:", font=font).grid(row=5, column=0, padx=10, pady=10, sticky="e")
@@ -82,7 +85,7 @@ class GroupFunction:
     def add_serial(self, event=None):
         serial = self.serial_entry.get()
         order = self.order_entry.get()
-        pallet_count = int(self.pallet_count_entry.get() or 0)
+        pallet_count = int(self.pallet_count_entry.get() or self.pallet_default_count)
 
         if serial.startswith("M"):
             self.current_mother_serial = serial
@@ -139,7 +142,7 @@ class GroupFunction:
         order = self.order_entry.get()
         station = self.station_entry.get()
         employee = self.employee_entry.get()
-        pallet_count = int(self.pallet_count_entry.get() or 0)
+        pallet_count = int(self.pallet_count_entry.get() or self.pallet_default_count)
         product_type = self.spec_var.get()
         date = datetime.now().strftime("%Y-%m-%d")
         create_time = datetime.now().strftime("%H:%M:%S.%f")  # 包含毫秒的時間戳
@@ -153,6 +156,7 @@ class GroupFunction:
         self.employee_entry.delete(0, tk.END)
         self.spec_var.set("整組(14)")
         self.pallet_count_entry.delete(0, tk.END)
+        self.pallet_count_entry.insert(0, str(self.pallet_default_count))  # 重設棧板數量為預設值
         self.serial_entry.delete(0, tk.END)
         self.serial_listbox.delete(0, tk.END)
         self.error_label.config(text="")
