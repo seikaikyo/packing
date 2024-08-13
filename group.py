@@ -9,7 +9,7 @@ class GroupFunction:
     def __init__(self, root):
         self.root = root
         self.root.title("整組掃描介面")
-        self.root.geometry("800x600")
+        self.root.geometry("800x600+200+100")
 
         self.db = DatabaseManager()
         self.db.create_tables()
@@ -55,21 +55,22 @@ class GroupFunction:
         self.serial_entry.grid(row=5, column=1, padx=10, pady=10)
         self.serial_entry.bind('<Return>', self.add_serial)
 
+        self.error_label = tk.Label(self.root, text="", font=font, fg="white", bg="red")
+        self.error_label.grid(row=6, column=0, columnspan=2, padx=10, pady=5, sticky="w")
+
         self.serial_listbox = tk.Listbox(self.root)
         self.serial_listbox.grid(row=6, column=0, columnspan=2, padx=10, pady=10)
-        
+
         self.count_label = tk.Label(self.root, text="目前包裝數量: 0")
         self.count_label.grid(row=7, column=0, columnspan=2, padx=10, pady=10)
 
-        self.error_label = tk.Label(self.root, text="", fg="white", bg="red", font=font)
-        self.error_label.grid(row=8, column=0, columnspan=2, padx=10, pady=5)
 
         button_frame = tk.Frame(self.root)
         button_frame.grid(row=9, column=0, columnspan=2, padx=10, pady=10)
         tk.Button(button_frame, text="清空", command=self.clear_entries).grid(row=0, column=0, padx=5, pady=5)
         tk.Button(button_frame, text="關閉工單", command=self.close_order).grid(row=0, column=1, padx=5, pady=5)
         # tk.Button(button_frame, text="清空資料庫", command=self.clear_database).grid(row=0, column=2, padx=5, pady=5)
-        # tk.Button(button_frame, text="匯出 EXCEL", command=self.export_to_excel).grid(row=0, column=3, padx=5, pady=5)
+        tk.Button(button_frame, text="匯出 EXCEL", command=self.export_to_excel).grid(row=0, column=3, padx=5, pady=5)
         tk.Button(button_frame, text="回到首頁", command=self.back_to_home).grid(row=0, column=4, padx=5, pady=5)
 
         self.pallet_serial_count = 0
@@ -182,26 +183,30 @@ class GroupFunction:
         self.clear_entries()
 
     def export_to_excel(self):
-        order = self.order_entry.get()
-        if not order:
-            self.show_error("請先輸入工單號碼")
-            return
-
-        group_query = "SELECT * FROM group_item WHERE order_number = ?"
-        group_df = pd.read_sql_query(group_query, self.db.sqlite_conn, params=(order,))
-        
-        if group_df.empty:
-            self.show_error("無此工單號碼的資料")
-            return
-
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{order}_{timestamp}.xlsx"
+        # 生成檔案名
+        today = datetime.now().strftime("%Y%m%d")
+        filename = f"{today}{self.pallet_sequence:03d}.xlsx"
         filepath = os.path.join(os.getcwd(), filename)
-        
+
+        # 查詢所有工單號碼
+        order_query = "SELECT DISTINCT order_number FROM group_item"
+        orders = pd.read_sql_query(order_query, self.db.sqlite_conn)['order_number']
+
+        if orders.empty:
+            self.show_error("資料庫中沒有任何資料")
+            return
+
+        # 創建 Excel 文件
         with pd.ExcelWriter(filepath) as writer:
-            group_df.to_excel(writer, sheet_name='Group Items', index=False)
-        
-        messagebox.showinfo("匯出成功", f"資料已匯出至 {filename}")
+            for order in orders:
+                group_query = "SELECT * FROM group_item WHERE order_number = ?"
+                group_df = pd.read_sql_query(group_query, self.db.sqlite_conn, params=(order,))
+                group_df.to_excel(writer, sheet_name=f'Order_{order}', index=False)
+
+        # 更新序列號
+        self.pallet_sequence += 1
+
+        messagebox.showinfo("匯出成功", f"所有資料已匯出至 {filename}")
 
     def back_to_home(self):
         self.root.destroy()

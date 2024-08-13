@@ -9,7 +9,7 @@ class SingleFunction:
     def __init__(self, root):
         self.root = root
         self.root.title("單片掃描介面")
-        self.root.geometry("800x600")
+        self.root.geometry("800x650+200+100")
 
         self.db = DatabaseManager()
         self.db.create_tables()
@@ -49,7 +49,7 @@ class SingleFunction:
         self.pallet_count_entry.grid(row=4, column=1, padx=10, pady=10)
         self.pallet_count_entry.insert(0, str(self.pallet_default_count))  # 預設棧板數量
         self.pallet_count_entry.bind('<Return>', self.focus_next_widget)
-        
+
         tk.Label(self.root, text="產品序號:", font=font).grid(row=5, column=0, padx=10, pady=10, sticky="e")
         self.serial_entry = tk.Entry(self.root, font=font, width=20)
         self.serial_entry.grid(row=5, column=1, padx=10, pady=10)
@@ -60,7 +60,7 @@ class SingleFunction:
 
         self.serial_listbox = tk.Listbox(self.root)
         self.serial_listbox.grid(row=7, column=0, columnspan=2, padx=10, pady=10)
-        
+
         self.count_label = tk.Label(self.root, text="目前包裝數量: 0")
         self.count_label.grid(row=8, column=0, columnspan=2, padx=10, pady=10)
 
@@ -69,7 +69,7 @@ class SingleFunction:
         tk.Button(button_frame, text="清空", command=self.clear_entries).grid(row=0, column=0, padx=5, pady=5)
         tk.Button(button_frame, text="關閉工單", command=self.close_order).grid(row=0, column=1, padx=5, pady=5)
         # tk.Button(button_frame, text="清空資料庫", command=self.clear_database).grid(row=0, column=2, padx=5, pady=5)
-        # tk.Button(button_frame, text="匯出 EXCEL", command=self.export_to_excel).grid(row=0, column=3, padx=5, pady=5)
+        tk.Button(button_frame, text="匯出 EXCEL", command=self.export_to_excel).grid(row=0, column=3, padx=5, pady=5)
         tk.Button(button_frame, text="回到首頁", command=self.back_to_home).grid(row=0, column=4, padx=5, pady=5)
 
         self.pallet_serial_count = 0
@@ -164,26 +164,31 @@ class SingleFunction:
         self.clear_entries()
 
     def export_to_excel(self):
-        order = self.order_entry.get()
-        if not order:
-            messagebox.showwarning("輸入錯誤", "請先輸入工單號碼")
-            return
-
-        single_query = "SELECT * FROM single_item WHERE order_number = ?"
-        single_df = pd.read_sql_query(single_query, self.db.sqlite_conn, params=(order,))
-        
-        if single_df.empty:
-            messagebox.showwarning("無資料", "無此工單號碼的資料")
-            return
-
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        filename = f"{order}_{timestamp}.xlsx"
+        # 生成檔案名
+        today = datetime.now().strftime("%Y%m%d")
+        filename = f"{today}{self.pallet_sequence:03d}.xlsx"
         filepath = os.path.join(os.getcwd(), filename)
-        
+
+        # 查詢所有工單號碼
+        order_query = "SELECT DISTINCT order_number FROM single_item"
+        orders = pd.read_sql_query(order_query, self.db.sqlite_conn)['order_number']
+
+        if orders.empty:
+            messagebox.showwarning("無資料", "資料庫中沒有任何資料")
+            return
+
+        # 創建 Excel 文件
         with pd.ExcelWriter(filepath) as writer:
-            single_df.to_excel(writer, sheet_name='Single Items', index=False)
+            for order in orders:
+                single_query = "SELECT * FROM single_item WHERE order_number = ?"
+                single_df = pd.read_sql_query(single_query, self.db.sqlite_conn, params=(order,))
+                single_df.to_excel(writer, sheet_name=f'Order_{order}', index=False)
         
-        messagebox.showinfo("匯出成功", f"資料已匯出至 {filename}")
+        # 更新序列號
+        self.pallet_sequence += 1
+        
+        messagebox.showinfo("匯出成功", f"所有資料已匯出至 {filename}")
+
 
     def back_to_home(self):
         self.root.destroy()
